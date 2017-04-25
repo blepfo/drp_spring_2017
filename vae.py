@@ -2,16 +2,16 @@
 
 import tensorflow as tf
 import numpy as np
-from matplotlib import pyplot as plt
 from nn_basics import ff_network
-from nn_basics import ff_layer
 from nn_basics import feedforward
+from nn_basics import generate
 
 class VAE:
-	def __init__(self, encode_architecture, dec_architecture, name="VAE"):
-		if ((encode_architecture[-1] != dec_architecture[0]) or (encode_architecture[0] != dec_architecture[-1])):
+	def __init__(self, encode_architecture, gen_architecture, name="VAE"):
+		if ((encode_architecture[-1] != gen_architecture[0]) or (encode_architecture[0] != gen_architecture[-1])):
 			raise Exception("Bad architecture")
 		self.encode_architecture = encode_architecture
+		self.gen_architecture = gen_architecture
 		self.graph = tf.Graph()
 		self.name = name
 		self.hidden_dim = encode_architecture[-1]
@@ -25,36 +25,33 @@ class VAE:
 					with tf.name_scope("images"):
 						self.inputs = tf.placeholder(tf.float32, [None, encode_architecture[0]])
 					with tf.name_scope("latent_samples"):
-						self.input_samples = tf.placeholder(tf.float32, [None, self.hidden_dim])
+						self.latent_samples = tf.placeholder(tf.float32, [None, self.hidden_dim])
 				# ENCODER 
-				with tf.name_scope("E"):
-					encode_layers, encode_outputs = ff_network(encode_architecture[0:-1], self.inputs, "E_hidden")
-					with tf.name_scope("encode_means"):
-						encode_means_layer = ff_layer([encode_architecture[-2], self.hidden_dim], "encode_means")
-						encode_means = feedforward(encode_means_layer, encode_outputs[-1])
-					with tf.name_scope("encode_logvar"):
-						encode_logvar_layer = ff_layer([encode_architecture[-2], self.hidden_dim], "encode_logvar")
-						encode_logvar = feedforward(encode_logvar_layer, encode_outputs[-1])
+				encode_hidden = ff_network(self.inputs, encode_architecture[0:-1], "E_hidden")
+				encode_means = feedforward(encode_hidden[-1], [encode_architecture[-2], self.hidden_dim],
+									"encode_means")
+				encode_logvar = feedforward(encode_hidden[-1], [encode_architecture[-2], self.hidden_dim],
+									"encode_logvar")
 				# LATENT
 				with tf.name_scope("latent_training"):
-					latent_training = tf.multiply(self.input_samples, tf.sqrt(tf.exp(encode_logvar))) + encode_means
+					latent_training = tf.multiply(self.latent_samples, tf.sqrt(tf.exp(encode_logvar))) + encode_means
 				# DECODER
 				with tf.name_scope("D_train"):
-					decode_train_layers, decode_train_outputs = ff_network(dec_architecture, latent_training, "D")
+					dec_train_out = ff_network(latent_training, gen_architecture, "D")
 				with tf.name_scope("D_gen"):
-					dec_gen_layers, decode_gen_outputs = ff_network(dec_architecture, self.input_samples, "D", reuse_vars=True)
-				self.generated = decode_gen_outputs[-1]
+					dec_gen_out = ff_network(self.latent_samples, gen_architecture, "D", reuse_vars=True)
+				self.generated = dec_gen_out[-1]
 				with tf.name_scope("cost"):
 					with tf.name_scope("mse"):
 						mse = 0.5 * tf.reduce_mean(
 							tf.reduce_sum(
-								tf.square(decode_train_outputs[-1] - self.inputs), 1)
+								tf.square(dec_train_out[-1] - self.inputs), 1)
 						)
 						tf.summary.scalar('mse', mse)
 					with tf.name_scope("kl_divergence"):
-						kl_divergence = 0.5 * tf.reduce_mean(
-							(tf.reduce_sum(tf.exp(encode_logvar), 1) +
-							tf.reduce_sum(tf.square(encode_means), 1) - 
+						kl_divergence = tf.reduce_mean(
+							0.5 * (tf.reduce_sum(tf.exp(encode_logvar), 1) +
+							tf.matmul(encode_means, tf.transpose(encode_means)) -
 							self.hidden_dim -
 							tf.reduce_sum(encode_logvar, 1)))
 						tf.summary.scalar('kl_divergence', kl_divergence)
@@ -75,18 +72,12 @@ class VAE:
 			file_writer = tf.summary.FileWriter(self.log_dir, sess.graph)
 			latent_samples = np.random.randn(inputs.shape[0], self.encode_architecture[-1])
 			_, summaries = sess.run([self.train_step, self.summaries], 
-						feed_dict={self.inputs : inputs, self.input_samples : latent_samples})
+						feed_dict={self.inputs : inputs, self.latent_samples : latent_samples})
 			file_writer.add_summary(summaries, epoch_num)	
 			saver.save(sess, self.save_dir)
-					
+	
 	def generate(self):
-		with tf.Session(graph=self.graph) as sess:
-			tf.train.Saver().restore(sess, self.save_dir)
-			latent_sample = np.random.randn(1, self.encode_architecture[-1])
-			image = sess.run(self.generated, feed_dict={self.input_samples : latent_sample})
-			plt.imshow(np.reshape(image, [28,28]), cmap="Greys")
-			plt.axis('off')
-			plt.show()
+		generate(self)
 	
 	def __str__(self):
 		with self.graph.as_default():
