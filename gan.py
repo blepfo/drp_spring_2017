@@ -2,18 +2,18 @@
 
 import tensorflow as tf
 import numpy as np
+from gen_model import Gen_Model
 from nn_basics import ff_network
-from nn_basics import generate
 
 epsilon = 1e-3
 
-class GAN:
+class GAN(Gen_Model):
 	def __init__(self, gen_architecture, dec_architecture, name="GAN"):
 		if (gen_architecture[-1] != dec_architecture[0]):
 			raise Exception("%d %d" % (gen_architecture[-1], dec_architecture[0]))
+		super().__init__(name)
 		self.gen_architecture = gen_architecture
 		self.dec_architecture = dec_architecture
-		self.name = name
 		self.graph = tf.Graph()
 		self.hidden_dim = gen_architecture[0]
 		# Save model to ./saves/<name>
@@ -29,18 +29,20 @@ class GAN:
 					with tf.name_scope("input_image"):
 						self.input_image = tf.placeholder(tf.float32, [None, dec_architecture[0]])
 				# GENERATOR NETWORK
-				gen_out = ff_network(self.latent_samples, gen_architecture, "G")
+				gen_network = ff_network(gen_architecture, "G")
+				gen_out = gen_network.compute_output(self.latent_samples)
 				self.generated = gen_out[-1]
 				# DISCRIMINATOR NETWORK
 				# Make sure discriminator has one output node
 				if (dec_architecture[-1] != 1):
 					dec_architecture.append(1)
 				dec_activ_funcs = ([tf.nn.relu] * (len(dec_architecture) - 1)).append(tf.sigmoid)
+				dec_network = ff_network(dec_architecture, "D", dec_activ_funcs)
 				with tf.name_scope("D_in"):
-					dec_in_out = ff_network(self.input_image, dec_architecture, "D", dec_activ_funcs)
+					dec_in_out = dec_network.compute_output(self.input_image)
 					tf.summary.scalar('D_in_out', tf.reduce_mean(dec_in_out[-1]))
 				with tf.name_scope("D_gen"):
-					dec_gen_out = ff_network(self.generated, dec_architecture, "D", dec_activ_funcs, reuse_vars=True)
+					dec_gen_out = dec_network.compute_output(self.generated)	
 					tf.summary.scalar('D_gen_out', tf.reduce_mean(dec_gen_out[-1]))
 				# TRAINING DETAILS
 				# Add epslon inside tf.log() to prevent log(0)
@@ -58,35 +60,19 @@ class GAN:
 					self.train_gen = tf.train.AdamOptimizer(1e-3).minimize(gen_cost, var_list=self.gen_params)
 					self.train_dec = tf.train.AdamOptimizer(1e-3).minimize(dec_cost, var_list=self.dec_params)
 				self.merged = tf.summary.merge_all()
-		# Initialize model and save
-		with tf.Session(graph=self.graph) as sess:
-			sess.run(tf.global_variables_initializer())
-			tf.train.Saver().save(sess, self.save_dir)
-	
+				
 	def train(self, inputs, epoch_num):
-		with tf.Session(graph=self.graph) as sess:
-			saver = tf.train.Saver()
-			saver.restore(sess, self.save_dir)
-			file_writer = tf.summary.FileWriter(self.log_dir, sess.graph)
-			# Create separate latent inputs for training discriminator and generator
-			latent_dec = np.random.randn(inputs.shape[0], self.gen_architecture[0])
-			latent_gen = np.random.randn(inputs.shape[0], self.gen_architecture[0])
-			# Train discriminator
-			sess.run(self.train_dec, 
-				feed_dict={self.input_image : inputs, self.latent_samples : latent_dec})
-			# Train generator
-			sess.run(self.train_gen, 
-				feed_dict={self.latent_samples : latent_gen})
-			# Get summaries for current batch
-			summary = sess.run(self.merged,
-				feed_dict={self.input_image : inputs, self.latent_samples : latent_dec})
-			file_writer.add_summary(summary, epoch_num)
-			saver.save(sess, self.save_dir)
-		
-	def generate(self):
-		generate(self)
-	
-	def __str__(self):
-		""" String of all trainable parameters in the network """
-		with self.graph.as_default():
-			return "\n".join([var.name for var in tf.trainable_variables()])	
+		file_writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
+		# Create separate latent inputs for training discriminator and generator
+		latent_dec = np.random.randn(inputs.shape[0], self.gen_architecture[0])
+		latent_gen = np.random.randn(inputs.shape[0], self.gen_architecture[0])
+		# Train discriminator
+		self.sess.run(self.train_dec, 
+			feed_dict={self.input_image : inputs, self.latent_samples : latent_dec})
+		# Train generator
+		self.sess.run(self.train_gen, 
+			feed_dict={self.latent_samples : latent_gen})
+		# Get summaries for current batch
+		summary = self.sess.run(self.merged,
+			feed_dict={self.input_image : inputs, self.latent_samples : latent_dec})
+		file_writer.add_summary(summary, epoch_num)
