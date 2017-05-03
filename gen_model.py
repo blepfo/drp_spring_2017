@@ -19,18 +19,19 @@ class Gen_Model:
 		self.sess = tf.InteractiveSession(graph=self.graph)
 		self.sess.run(tf.global_variables_initializer())
 		
-	def save(self):
-		tf.train.Saver().save(self.sess, self.save_dir)
+	def save(self, save_dir=None, step=None):
+		if save_dir == None:
+			save_dir = self.save_dir
+		tf.train.Saver().save(self.sess, save_dir, global_step=step)
 	
-	def restore(self):
-		tf.train.Saver().restore(self.sess, self.save_dir)
+	def restore(self, save_dir=None):
+		if save_dir == None:
+			save_dir = self.save_dir
+		tf.train.Saver().restore(self.sess, save_dir)
 		
 	def end_session(self):
 		self.sess.close()
 		self.sess = None	
-	
-	def generate(self):
-		generate(self)
 	
 	def __str__(self):
 		with self.graph.as_default():

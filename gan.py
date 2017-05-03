@@ -61,8 +61,7 @@ class GAN(Gen_Model):
 					self.train_dec = tf.train.AdamOptimizer(1e-3).minimize(dec_cost, var_list=self.dec_params)
 				self.merged = tf.summary.merge_all()
 				
-	def train(self, inputs, epoch_num):
-		file_writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
+	def train(self, inputs, epoch_num, log=False):
 		# Create separate latent inputs for training discriminator and generator
 		latent_dec = np.random.randn(inputs.shape[0], self.gen_architecture[0])
 		latent_gen = np.random.randn(inputs.shape[0], self.gen_architecture[0])
@@ -72,7 +71,9 @@ class GAN(Gen_Model):
 		# Train generator
 		self.sess.run(self.train_gen, 
 			feed_dict={self.latent_samples : latent_gen})
-		# Get summaries for current batch
-		summary = self.sess.run(self.merged,
-			feed_dict={self.input_image : inputs, self.latent_samples : latent_dec})
-		file_writer.add_summary(summary, epoch_num)
+		if log:
+			file_writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
+			# Get summaries for current batch
+			summary = self.sess.run(self.merged,
+				feed_dict={self.input_image : inputs, self.latent_samples : latent_dec})
+			file_writer.add_summary(summary, epoch_num)

@@ -27,11 +27,13 @@ class VAE(Gen_Model):
 					with tf.name_scope("latent_samples"):
 						self.latent_samples = tf.placeholder(tf.float32, [None, self.hidden_dim])
 				# ENCODER 
+				e_activations = [tf.sigmoid] * (len(encode_architecture) - 1)
 				with tf.name_scope("E"):
 					if (len(encode_architecture) == 2):
 						e_hidden_out = self.inputs
 					else:
-						encode_hidden = ff_network(encode_architecture[0:-1], "E_H")
+						encode_hidden = ff_network(encode_architecture[0:-1], "E_H",
+									activation_funcs = e_activations)
 						e_hidden_out = encode_hidden.compute_output(self.inputs)[-1]
 					# encode_means
 					encode_means_layer = ff_layer([encode_architecture[-2], self.hidden_dim], 'encode_means', tf.identity)
@@ -39,8 +41,7 @@ class VAE(Gen_Model):
 					# encode_logvar
 					encode_logvar_layer = ff_layer([encode_architecture[-2], self.hidden_dim], 'encode_logvar', tf.identity)
 					encode_logvar = encode_logvar_layer.feedforward(e_hidden_out)
-					
-				# LATENT
+				# LATENT 
 				with tf.name_scope("latent_training"):
 					latent_training = tf.multiply(self.latent_samples, tf.sqrt(tf.exp(encode_logvar))) + encode_means
 				# DECODER
@@ -69,14 +70,16 @@ class VAE(Gen_Model):
                                            - tf.exp(encode_logvar), 1)
 						tf.summary.scalar('kl_divergence', tf.reduce_mean(kl_divergence))
 					cost = tf.reduce_mean(mse + kl_divergence)
+					
 					tf.summary.scalar('cost', cost)
 				with tf.name_scope("train"):
-					self.train_step = tf.train.GradientDescentOptimizer(1e-3).minimize(cost)
+					self.train_step = tf.train.AdamOptimizer(1e-3).minimize(cost)
 			self.summaries = tf.summary.merge_all()
 
-	def train(self, inputs, epoch_num):
-		file_writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
+	def train(self, inputs, epoch_num, log=True):
 		latent_samples = np.random.randn(inputs.shape[0], self.encode_architecture[-1])
 		_, summaries = self.sess.run([self.train_step, self.summaries], 
 					feed_dict={self.inputs : inputs, self.latent_samples : latent_samples})
-		file_writer.add_summary(summaries, epoch_num)
+		if log:
+			file_writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
+			file_writer.add_summary(summaries, epoch_num)
