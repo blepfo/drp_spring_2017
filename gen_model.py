@@ -1,7 +1,10 @@
 
 import tensorflow as tf
 import numpy as np
+from math import floor
+from math import sqrt
 from matplotlib import pyplot as plt
+from matplotlib.gridspec import GridSpec
 
 class Gen_Model:
 	"""
@@ -47,3 +50,26 @@ class Gen_Model:
 			plt.imshow(np.reshape(images[i], [28,28]), cmap="Greys")
 			plt.axis('off')
 		plt.show()
+		
+	def visualize_latent2D(self, size=81, low=-0.5, high=0.5, save=False, save_dir=None, name=None):
+		""" Create a 9x9 grid of images created from a model with a 2D hidden dimension """
+		if self.hidden_dim != 2:
+			raise Exception("Model needs 2D latent dimension to use visualize_latent2D()")
+		# Create images
+		latent_samples = np.matrix([[x, y] for x in np.linspace(low, high, size) 
+										for y in np.linspace(low, high, size)])
+		images = self.sess.run(self.generated, feed_dict={self.latent_samples : latent_samples})
+		square_size = floor(sqrt(size))
+		fig = plt.figure(figsize=(square_size, square_size))
+		for i in range(1, size + 1):
+			plt.subplot(square_size, square_size, i)
+			plt.imshow(np.reshape(images[i], [28, 28]), cmap="Greys")
+			plt.axis('off')
+		fig.subplots_adjust(wspace=0, hspace=0)
+		if save:
+			fig.savefig("%s%s" % (save_dir, name), bbox_inches='tight')
+			plt.close()
+		else:
+			plt.show()
+			
+			
