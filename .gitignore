@@ -1,0 +1,8 @@
+images/
+logs/
+MNIST_data/
+saves/
+.ipynb_checkpoints/
+__pycache__/
+.ipyn
+*.pyc
