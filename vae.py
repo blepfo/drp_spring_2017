@@ -1,4 +1,4 @@
-""" Reusable network components """
+""" Variational Autoencoder """
 
 import tensorflow as tf
 import numpy as np
@@ -7,7 +7,16 @@ from nn_basics import ff_network
 from nn_basics import ff_layer
 
 class VAE(Gen_Model):
+	"""TensorFlow implementation of Variational Autoencoder"""
+
 	def __init__(self, encode_architecture, gen_architecture, name="VAE"):
+		"""Constructor.
+		
+		Args: 
+			encode_architecture (int list): List of layer sizes for encoding network
+			gen_architecture (int list): List of layer sizes for decoding network
+			name (string): Name for the network
+		"""
 		if ((encode_architecture[-1] != gen_architecture[0]) or (encode_architecture[0] != gen_architecture[-1])):
 			raise Exception("Bad architecture")
 		super().__init__(name)
@@ -59,12 +68,6 @@ class VAE(Gen_Model):
 								tf.square(dec_train_out[-1] - self.inputs), 1)
 						tf.summary.scalar('mse', tf.reduce_mean(mse))
 					with tf.name_scope("kl_divergence"):
-						"""
-						kl_divergence = 0.5 * (tf.reduce_sum(tf.exp(encode_logvar), 1) +
-							tf.reduce_sum(tf.square(encode_means), 1) - 
-							self.hidden_dim -
-							tf.reduce_sum(encode_logvar, 1))
-						"""
 						kl_divergence = -0.5 * tf.reduce_sum(1 + encode_logvar 
                                            - tf.square(encode_means) 
                                            - tf.exp(encode_logvar), 1)
@@ -77,6 +80,13 @@ class VAE(Gen_Model):
 			self.summaries = tf.summary.merge_all()
 
 	def train(self, inputs, epoch_num, log=True):
+		""" Train the network. 
+		
+		Args:
+			inputs (tensor): Batch of inputs of shape (batch_num, x)
+			epoch_num (int): Batch/epoch number used for logging
+			log (bool): Decide whether or not network state should be logged
+		"""
 		latent_samples = np.random.randn(inputs.shape[0], self.encode_architecture[-1])
 		_, summaries = self.sess.run([self.train_step, self.summaries], 
 					feed_dict={self.inputs : inputs, self.latent_samples : latent_samples})

@@ -1,4 +1,4 @@
-""" GAN """
+"""Generative Adversarial Network"""
 
 import tensorflow as tf
 import numpy as np
@@ -8,7 +8,16 @@ from nn_basics import ff_network
 epsilon = 1e-3
 
 class GAN(Gen_Model):
+	"""TensorFlow implementation of a Generative Adversarial Network."""
+	
 	def __init__(self, gen_architecture, dec_architecture, name="GAN"):
+		"""Constructor.
+		
+		Args:
+			gen_architecture (int list): List of layer sizes for the generator network
+			dec_architecture (int list): List of layer sizes for discriminator network
+			name (string): Name for the network
+		"""
 		if (gen_architecture[-1] != dec_architecture[0]):
 			raise Exception("%d %d" % (gen_architecture[-1], dec_architecture[0]))
 		super().__init__(name)
@@ -62,6 +71,13 @@ class GAN(Gen_Model):
 				self.merged = tf.summary.merge_all()
 				
 	def train(self, inputs, epoch_num, log=False):
+		""" Train the network. 
+		
+		Args:
+			inputs (tensor): Batch of network inputs of shape (batch_num, x)
+			epoch_num (int): Batch/epoch num used for logging
+			log (bool): Decides whether or not current network parameters should be logged
+		"""
 		# Create separate latent inputs for training discriminator and generator
 		latent_dec = np.random.randn(inputs.shape[0], self.gen_architecture[0])
 		latent_gen = np.random.randn(inputs.shape[0], self.gen_architecture[0])

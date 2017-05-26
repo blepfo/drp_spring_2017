@@ -6,3 +6,5 @@ saves/
 __pycache__/
 .ipyn
 *.pyc
+mnist_show.py
+generate_images.py
